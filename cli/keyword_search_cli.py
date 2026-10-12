@@ -1,9 +1,26 @@
 from typing import Any
+import string
 
 
 import argparse
 import json
 
+with open("data/stopwords.txt", encoding="utf-8") as f:
+    stop_words = set(f.read().splitlines())
+
+def stem(token: str) -> str:
+    for suffix in _SUFFIXES:
+        if len(token) > len(suffix) + 2 and token.endswith(suffix):
+            return token[: -len(suffix)]
+    return token
+
+def process_query(query: str) -> list[str]:
+    query = query.strip().lower()
+    table = str.maketrans("", "", string.punctuation)
+    query = query.translate(table)
+    query_tokens = query.split()
+    query_tokens = [token for token in query_tokens if token not in stop_words]
+    return query_tokens
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Keyword Search CLI")
@@ -22,9 +39,12 @@ def main() -> None:
                 movies = json.load(f)["movies"]
             results = []
             for movie in movies:
-                if args.query in movie["title"]:
+                if any(token in movie["title"].lower() for token in process_query(args.query)):
                     results.append(movie)
-            results = results[:5]
+            results = results[:5]  # limit to 5 results
+            result_str = f"""
+            Searching for: {args.query}
+            """
             result_str = f"""
             Searching for: {args.query}
             """
