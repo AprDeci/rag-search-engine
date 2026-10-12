@@ -1,12 +1,14 @@
 from typing import Any
 import string
-
+from nltk.stem import PorterStemmer
 
 import argparse
 import json
 
 with open("data/stopwords.txt", encoding="utf-8") as f:
     stop_words = set(f.read().splitlines())
+
+stemmer = PorterStemmer()
 
 def stem(token: str) -> str:
     for suffix in _SUFFIXES:
@@ -20,6 +22,7 @@ def process_query(query: str) -> list[str]:
     query = query.translate(table)
     query_tokens = query.split()
     query_tokens = [token for token in query_tokens if token not in stop_words]
+    query_tokens = [stemmer.stem(token) for token in query_tokens]
     return query_tokens
 
 def main() -> None:
@@ -39,7 +42,9 @@ def main() -> None:
                 movies = json.load(f)["movies"]
             results = []
             for movie in movies:
-                if any(token in movie["title"].lower() for token in process_query(args.query)):
+                title = movie["title"].lower().split()
+                title_token = [stemmer.stem(token) for token in title]
+                if any(token in title_token for token in process_query(args.query)):
                     results.append(movie)
             results = results[:5]  # limit to 5 results
             result_str = f"""
