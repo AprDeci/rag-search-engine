@@ -3,6 +3,7 @@ import json
 import os
 import pickle
 import string
+from collections import Counter
 
 from nltk.stem import PorterStemmer
 
@@ -23,6 +24,14 @@ def process_query(query: str) -> list[str]:
     return tokenize_text(query)
 
 
+def tokenize_term(term: str) -> str:
+    """把单个 term 也过一遍分词器，保证和建表时的写法一致。"""
+    tokens = tokenize_text(term)
+    if len(tokens) != 1:
+        raise ValueError(f"term {term!r} 分词后不是恰好一个 token: {tokens}")
+    return tokens[0]
+
+
 def load_movies() -> list[dict]:
     with open("data/movies.json", encoding="utf-8") as f:
         return json.load(f)["movies"]
@@ -32,13 +41,19 @@ class InvertedIndex:
     def __init__(self) -> None:
         self.index: dict[str, set[int]] = {}
         self.docmap: dict[int, dict] = {}
+        self.term_frequencies:dict[int,Counter] = {}
 
     def __add_document(self, doc_id: int, text: str) -> None:
-        for token in tokenize_text(text):
+        tokens = tokenize_text(text)
+        for token in tokens:
             self.index.setdefault(token, set[int]()).add(doc_id)
+        self.term_frequencies[doc_id] = Counter(tokens)
 
     def get_documents(self, term: str) -> list[int]:
         return sorted(self.index.get(term, set[int]()))
+
+    def get_tf(self, doc_id: int, term: str) -> int:
+        return self.term_frequencies.get(doc_id, Counter()).get(term, 0)
 
     def build(self) -> None:
         for movie in load_movies():
@@ -51,12 +66,16 @@ class InvertedIndex:
             pickle.dump(self.index, f)
         with open("cache/docmap.pkl", "wb") as f:
             pickle.dump(self.docmap, f)
+        with open("cache/term_frequencies.pkl", "wb") as f:
+            pickle.dump(self.term_frequencies, f)
     
     def load(self) -> None:
         with open("cache/index.pkl", "rb") as f:
             self.index = pickle.load(f)
         with open("cache/docmap.pkl", "rb") as f:
             self.docmap = pickle.load(f)
+        with open("cache/term_frequencies.pkl", "rb") as f:
+            self.term_frequencies = pickle.load(f)
 
 
 
@@ -68,6 +87,10 @@ def main() -> None:
     search_parser.add_argument("query", type=str, help="Search query")
 
     subparsers.add_parser("build", help="Build and save the inverted index")
+
+    tf_parser = subparsers.add_parser("tf", help="Get term frequency")
+    tf_parser.add_argument("doc_id", type=int, help="Document ID")
+    tf_parser.add_argument("term", type=str, help="Term")
 
     args = parser.parse_args()
 
@@ -108,7 +131,16 @@ def main() -> None:
             inverse_index = InvertedIndex()
             inverse_index.build()
             inverse_index.save()
-            
+
+        case "tf":
+            try:
+                inverse_index = InvertedIndex()
+                inverse_index.load()
+            except Exception as e:
+                print(f"[Error] loading inverted index: {e}")
+                return
+            token = tokenize_term(args.term)
+            print(inverse_index.get_tf(args.doc_id, token))
 
         case _:
             parser.print_help()
