@@ -73,20 +73,35 @@ def main() -> None:
 
     match args.command:
         case "search":
+            try:
+                inverse_index = InvertedIndex()
+                inverse_index.load()
+            except Exception as e:
+                print(f"[Error] loading inverted index: {e}")
+                return
             # print the search query here
             print(f"Searching for: {args.query}")  
-            with open("data/movies.json", encoding="utf-8") as f: 
-                movies = json.load(f)["movies"]
-            results = []
-            for movie in movies:
-                title = movie["title"].lower().split()
-                title_token = [stemmer.stem(token) for token in title]
-                if any(token in title_token for token in process_query(args.query)):
-                    results.append(movie)
-            results = results[:5]  # limit to 5 results
+            # with open("data/movies.json", encoding="utf-8") as f: 
+            #     movies = json.load(f)["movies"]
+            # for movie in movies:
+            #     title = movie["title"].lower().split()
+            #     title_token = [stemmer.stem(token) for token in title]
+            #     if any(token in title_token for token in process_query(args.query)):
+            #         results.append(movie)
+            query_tokens = process_query(args.query)
+            results = []  # 存文档 id
+            for token in query_tokens:
+                for doc_id in inverse_index.get_documents(token):
+                    if doc_id not in results:
+                        results.append(doc_id)
+                        if len(results) == 5:  # 满 5 条就停
+                            break
+                if len(results) == 5:
+                    break
             result_str = ""
-            for index, movie in enumerate(results, 1):
-                result_str += f"{index}. {movie['title']}\n"
+            for index, doc_id in enumerate(results, 1):
+                movie = inverse_index.docmap[doc_id]
+                result_str += f"{index}. {movie['title']} (id={movie['id']})\n"
             print(result_str)
 
         case "build":
