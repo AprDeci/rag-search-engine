@@ -77,7 +77,30 @@ class InvertedIndex:
         avg_doc_length = self.__get_avg_doc_length()
         length_norm=1 - b + b * (doc_length / avg_doc_length)
         return (tf * (k1 + 1)) / (tf + k1 * length_norm)
+
+    def bm25(self, doc_id, term)->float:
+        tf = self.get_bm25_tf(doc_id, term)
+        idf = self.get_bm25_idf(term)
+        return tf * idf
     
+    def bm25_search(self, query, limit):
+        # 1) 查询分词
+        tokens = process_query(query)
+
+        # 2) doc_id -> 累计 BM25 总分
+        scores: dict[int, float] = {}
+
+        # 3) 对每个查询词，把它的 BM25 分加到"含该词的文档"头上
+        for token in tokens:
+            for doc_id in self.get_documents(token):
+                scores[doc_id] = scores.get(doc_id, 0) + self.bm25(doc_id, token)
+
+        # 4) 按分数从高到低排序
+        ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+
+        # 5) 返回前 limit 个 (doc_id, score)
+        return ranked[:limit]
+
     def __get_avg_doc_length(self) -> float:
         if not self.doc_lengths:
             return 0.0
@@ -148,6 +171,13 @@ def main() -> None:
         "b", type=float, nargs="?", default=BM25_B, help="Tunable BM25 b parameter"
     )
 
+    bm25search_parser = subparsers.add_parser(
+    "bm25search", help="Search movies using full BM25 scoring"
+)
+    bm25search_parser.add_argument("query", type=str, help="Search query")
+    bm25search_parser.add_argument(
+        "limit", type=int, nargs="?", default=5, help="Number of results to return"
+    )
 
 
     args = parser.parse_args()
@@ -247,8 +277,22 @@ def main() -> None:
             token = tokenize_term(args.term)
             bm25_tf = inverse_index.get_bm25_tf(args.doc_id, token, args.k1,args.b)
             print(f"BM25 TF score of '{args.term}': {bm25_tf:.2f}")
+        
+        case "bm25search":
+            try:
+                inverse_index = InvertedIndex()
+                inverse_index.load()
+            except Exception as e:
+                print(f"[Error] loading inverted index: {e}")
+                return
+            results = inverse_index.bm25_search(args.query, args.limit)
+            # 1. (15) The Adventures of Mowgli - Score: 7.79
+            for index, (doc_id, score) in enumerate(results, 1):
+                print(f"{index}. ({doc_id}) {inverse_index.docmap[doc_id]['title']} - Score: {score:.2f}")
 
 
+
+        
         case _:
             parser.print_help()
 
