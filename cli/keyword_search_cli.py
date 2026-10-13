@@ -55,6 +55,11 @@ class InvertedIndex:
 
     def get_tf(self, doc_id: int, term: str) -> int:
         return self.term_frequencies.get(doc_id, Counter()).get(term, 0)
+    
+    def get_idf(self, term: str) -> float:
+        total_doc_count = len(self.docmap)
+        term_match_doc_count = len(self.get_documents(term))
+        return math.log((total_doc_count + 1) / (term_match_doc_count + 1))
 
     def build(self) -> None:
         for movie in load_movies():
