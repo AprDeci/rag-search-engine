@@ -8,6 +8,8 @@ from collections import Counter
 
 from nltk.stem import PorterStemmer
 
+from count import BM25_B, BM25_K1
+
 with open("data/stopwords.txt", encoding="utf-8") as f:
     stop_words = set(f.read().splitlines())
 
@@ -43,12 +45,15 @@ class InvertedIndex:
         self.index: dict[str, set[int]] = {}
         self.docmap: dict[int, dict] = {}
         self.term_frequencies:dict[int,Counter] = {}
+        self.doc_lengths:dict = {}
+
 
     def __add_document(self, doc_id: int, text: str) -> None:
         tokens = tokenize_text(text)
         for token in tokens:
             self.index.setdefault(token, set[int]()).add(doc_id)
         self.term_frequencies[doc_id] = Counter(tokens)
+        self.doc_lengths[doc_id] = len(tokens)
 
     def get_documents(self, term: str) -> list[int]:
         return sorted(self.index.get(term, set[int]()))
@@ -60,6 +65,23 @@ class InvertedIndex:
         total_doc_count = len(self.docmap)
         term_match_doc_count = len(self.get_documents(term))
         return math.log((total_doc_count + 1) / (term_match_doc_count + 1))
+
+    def get_bm25_idf(self, term: str) -> float:
+        total_doc_count = len(self.docmap)
+        term_match_doc_count = len(self.get_documents(term))
+        return math.log((total_doc_count - term_match_doc_count + 0.5) / (term_match_doc_count + 0.5)+1)
+
+    def get_bm25_tf(self, doc_id, term, k1=BM25_K1, b=BM25_B) -> float:
+        tf = self.get_tf(doc_id, term)
+        doc_length = self.doc_lengths.get(doc_id, 0)
+        avg_doc_length = self.__get_avg_doc_length()
+        length_norm=1 - b + b * (doc_length / avg_doc_length)
+        return (tf * (k1 + 1)) / (tf + k1 * length_norm)
+    
+    def __get_avg_doc_length(self) -> float:
+        if not self.doc_lengths:
+            return 0.0
+        return sum(self.doc_lengths.values()) / len(self.doc_lengths)
 
     def build(self) -> None:
         for movie in load_movies():
@@ -74,6 +96,8 @@ class InvertedIndex:
             pickle.dump(self.docmap, f)
         with open("cache/term_frequencies.pkl", "wb") as f:
             pickle.dump(self.term_frequencies, f)
+        with open("cache/doc_lengths.pkl", "wb") as f:
+            pickle.dump(self.doc_lengths, f)
     
     def load(self) -> None:
         with open("cache/index.pkl", "rb") as f:
@@ -82,6 +106,8 @@ class InvertedIndex:
             self.docmap = pickle.load(f)
         with open("cache/term_frequencies.pkl", "rb") as f:
             self.term_frequencies = pickle.load(f)
+        with open("cache/doc_lengths.pkl", "rb") as f:
+            self.doc_lengths = pickle.load(f)
 
 
 
@@ -104,6 +130,25 @@ def main() -> None:
     tfidf_parser = subparsers.add_parser("tfidf", help="Get term frequency-inverse document frequency")
     tfidf_parser.add_argument("doc_id", type=int, help="Document ID")
     tfidf_parser.add_argument("term", type=str, help="Term")
+
+    bm25_idf_parser = subparsers.add_parser(
+        "bm25idf", help="Get BM25 IDF score for a given term"
+    )
+    bm25_idf_parser.add_argument("term", type=str, help="Term to get BM25 IDF score for")
+
+    bm25_tf_parser = subparsers.add_parser(
+    "bm25tf", help="Get BM25 TF score for a given document ID and term"
+)
+    bm25_tf_parser.add_argument("doc_id", type=int, help="Document ID")
+    bm25_tf_parser.add_argument("term", type=str, help="Term to get BM25 TF score for")
+    bm25_tf_parser.add_argument(
+        "k1", type=float, nargs="?", default=BM25_K1, help="Tunable BM25 K1 parameter"
+    )
+    bm25_tf_parser.add_argument(
+        "b", type=float, nargs="?", default=BM25_B, help="Tunable BM25 b parameter"
+    )
+
+
 
     args = parser.parse_args()
 
@@ -181,7 +226,28 @@ def main() -> None:
             tfidf = tf * idf
             print(f"Term frequency-inverse document frequency of '{args.term}': {tfidf:.2f}")
 
+        case "bm25idf":
+            try:
+                inverse_index = InvertedIndex()
+                inverse_index.load()
+            except Exception as e:
+                print(f"[Error] loading inverted index: {e}")
+                return
+            token = tokenize_term(args.term)
+            bm25_idf = inverse_index.get_bm25_idf(token)
+            print(f"BM25 IDF score of '{args.term}': {bm25_idf:.2f}")
     
+        case "bm25tf":
+            try:
+                inverse_index = InvertedIndex()
+                inverse_index.load()
+            except Exception as e:
+                print(f"[Error] loading inverted index: {e}")
+                return
+            token = tokenize_term(args.term)
+            bm25_tf = inverse_index.get_bm25_tf(args.doc_id, token, args.k1,args.b)
+            print(f"BM25 TF score of '{args.term}': {bm25_tf:.2f}")
+
 
         case _:
             parser.print_help()
