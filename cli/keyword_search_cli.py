@@ -190,15 +190,6 @@ def main() -> None:
             except Exception as e:
                 print(f"[Error] loading inverted index: {e}")
                 return
-            # print the search query here
-            print(f"Searching for: {args.query}")  
-            # with open("data/movies.json", encoding="utf-8") as f: 
-            #     movies = json.load(f)["movies"]
-            # for movie in movies:
-            #     title = movie["title"].lower().split()
-            #     title_token = [stemmer.stem(token) for token in title]
-            #     if any(token in title_token for token in process_query(args.query)):
-            #         results.append(movie)
             query_tokens = process_query(args.query)
             results = []  # 存文档 id
             for token in query_tokens:
