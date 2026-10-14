@@ -4,6 +4,7 @@ import os
 from sentence_transformers import SentenceTransformer
 import numpy as np
 
+
 class SemanticSearch:
     def __init__(self):
         model = SentenceTransformer("all-MiniLM-L6-v2")
@@ -38,6 +39,23 @@ class SemanticSearch:
             self.embeddings = self.build_embeddings(documents)
         return self.embeddings
 
+    def search(self,query:str,limit:int):
+        if self.embeddings is None:
+            raise ValueError("No embeddings loaded. Call `load_or_create_embeddings` first.")
+        query_embedding = self.generate_embedding(query)
+        similarities = [cosine_similarity(query_embedding, doc_embedding) for doc_embedding in self.embeddings]
+        
+        results = []
+        for sim, doc_id in zip(similarities, self.document_map.keys()):
+            doc = self.document_map[doc_id]
+            results.append({
+                "score": sim,
+                "title": doc["title"],
+                "description": doc["description"],
+            })
+
+        results.sort(key=lambda r: r["score"], reverse=True)
+        return results[:limit]
 
 
         
@@ -70,3 +88,14 @@ def embed_query_text(query:str):
     print(f"Query: {query}")
     print(f"First 3 dimensions: {embedding[:3]}")
     print(f"Shape: {embedding.shape}")
+
+# 余弦相似度
+def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
+    dot_product = np.dot(vec1, vec2)
+    norm1 = np.linalg.norm(vec1)
+    norm2 = np.linalg.norm(vec2)
+
+    if norm1 == 0 or norm2 == 0:
+        return 0.0
+
+    return dot_product / (norm1 * norm2)
