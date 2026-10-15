@@ -16,10 +16,6 @@ def semantic_chunk_text(text: str, max_chunk_size: int, overlap: int) -> list[st
     if overlap >= max_chunk_size:
         raise ValueError("overlap must be smaller than max_chunk_size")
     sentences = re.split(r"(?<=[.!?])\s+", text)
-    # return [
-    #     " ".join(sentences[i:i + max_chunk_size])
-    #     for i in range(0, len(sentences), max_chunk_size - overlap)
-    # ]
     chunks = []
     i = 0
     while i < len(sentences):
@@ -39,7 +35,7 @@ def main() -> None:
     embed_text_parser = verify_parser.add_parser("embed_text", help="Embed text")
     embed_text_parser.add_argument("text", type=str, help="Text to embed")
 
-    verify_embeddings_parser = verify_parser.add_parser("verify_embeddings", help="Verify embeddings")
+    verify_parser.add_parser("verify_embeddings", help="Verify embeddings")
 
     embed_query_text_parser = verify_parser.add_parser("embed_query", help="Embed query text")
     embed_query_text_parser.add_argument("query", type=str, help="Query text to embed")
@@ -58,6 +54,7 @@ def main() -> None:
     semantic_chunk_parser.add_argument("--max-chunk-size", type=int, default=4, help="Maximum size of each chunk")
     semantic_chunk_parser.add_argument("--overlap", type=int, default=0, help="Overlap of each chunk")
 
+    embed_chunks_parser = verify_parser.add_parser("embed_chunks", help="Build or load chunk embeddings")
 
     args = parser.parse_args()
 
@@ -90,10 +87,15 @@ def main() -> None:
             print(f"Semantically chunking {len(args.text)} characters")
             for index,chunk in enumerate(chunks):
                 print(f"{index+1}. {chunk}")
+        case "embed_chunks":
+            with open("data/movies.json", encoding="utf-8") as f:
+                documents = json.load(f)["movies"]
+            chunked = ChunkedSemanticSearch()
+            chunked.load_or_create_chunk_embeddings(documents)
+            print(f"Generated {len(chunked.chunk_embeddings)} chunked embeddings")
         case _:
             parser.print_help()
 
 
 if __name__ == "__main__":
     main()
-
