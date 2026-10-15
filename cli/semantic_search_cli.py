@@ -2,11 +2,13 @@ import argparse
 import json
 from lib.semantic_search import SemanticSearch, embed_query_text, embed_text, verify_embeddings, verify_model
 
-def chunk_text(text: str, chunk_size: int) -> list[str]:
+def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
+    if overlap >= chunk_size:
+        raise ValueError("overlap must be smaller than chunk_size")
     words = text.split()
     return [
         " ".join(words[i:i + chunk_size])
-        for i in range(0, len(words), chunk_size)
+        for i in range(0, len(words), chunk_size - overlap)
     ]
 
 def main() -> None:
@@ -31,6 +33,7 @@ def main() -> None:
     chunk_parser = verify_parser.add_parser("chunk", help="Chunk documents")
     chunk_parser.add_argument("text",type=str, help="Text to chunk")
     chunk_parser.add_argument("--chunk-size", type=int, default=200, help="Size of each chunk")
+    chunk_parser.add_argument("--overlap", type=int, default=0, help="Overlap of each chunk")
 
 
 
@@ -56,7 +59,7 @@ def main() -> None:
                 print(f"{i}. {r['title']} (score: {r['score']:.4f})")
                 print(f"  {r['description'][:100]}...\n")
         case "chunk":
-            chunks = chunk_text(args.text, args.chunk_size)
+            chunks = chunk_text(args.text, args.chunk_size, args.overlap)
             print(f"Chunking {len(args.text)} characters")
             for index,chunk in enumerate(chunks):
                 print(f"{index+1}. {chunk}")
