@@ -1,6 +1,7 @@
 import argparse
 import json
 from lib.semantic_search import SemanticSearch, embed_query_text, embed_text, verify_embeddings, verify_model
+import re
 
 def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
     if overlap >= chunk_size:
@@ -10,6 +11,23 @@ def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
         " ".join(words[i:i + chunk_size])
         for i in range(0, len(words), chunk_size - overlap)
     ]
+
+def semantic_chunk_text(text: str, max_chunk_size: int, overlap: int) -> list[str]:
+    if overlap >= max_chunk_size:
+        raise ValueError("overlap must be smaller than max_chunk_size")
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    # return [
+    #     " ".join(sentences[i:i + max_chunk_size])
+    #     for i in range(0, len(sentences), max_chunk_size - overlap)
+    # ]
+    chunks = []
+    i = 0
+    while i < len(sentences):
+        chunks.append(" ".join(sentences[i:i + max_chunk_size]))
+        if i + max_chunk_size >= len(sentences):   
+            break
+        i += max_chunk_size - overlap
+    return chunks
 
 def main() -> None:
 
@@ -35,6 +53,10 @@ def main() -> None:
     chunk_parser.add_argument("--chunk-size", type=int, default=200, help="Size of each chunk")
     chunk_parser.add_argument("--overlap", type=int, default=0, help="Overlap of each chunk")
 
+    semantic_chunk_parser = verify_parser.add_parser("semantic_chunk", help="Chunk documents with semantic search")
+    semantic_chunk_parser.add_argument("text",type=str, help="Text to chunk")
+    semantic_chunk_parser.add_argument("--max-chunk-size", type=int, default=4, help="Maximum size of each chunk")
+    semantic_chunk_parser.add_argument("--overlap", type=int, default=0, help="Overlap of each chunk")
 
 
     args = parser.parse_args()
@@ -61,6 +83,11 @@ def main() -> None:
         case "chunk":
             chunks = chunk_text(args.text, args.chunk_size, args.overlap)
             print(f"Chunking {len(args.text)} characters")
+            for index,chunk in enumerate(chunks):
+                print(f"{index+1}. {chunk}")
+        case "semantic_chunk":
+            chunks = semantic_chunk_text(args.text, args.max_chunk_size, args.overlap)
+            print(f"Semantically chunking {len(args.text)} characters")
             for index,chunk in enumerate(chunks):
                 print(f"{index+1}. {chunk}")
         case _:
