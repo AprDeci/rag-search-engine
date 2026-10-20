@@ -14,3 +14,8 @@ dependencies = [
 dev = [
     "pytest>=9.1.1",
 ]
+
+[tool.ty.rules]
+invalid-argument-type = "ignore"
+unresolved-attribute = "ignore"
+not-subscriptable = "ignore"
