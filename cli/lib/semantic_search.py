@@ -162,9 +162,12 @@ class ChunkSemanticSearch(SemanticSearch):
         else:
             self.chunk_embeddings = self.build_chunk_embeddings(documents)
 
-    def search_chunks(self,query:str,limit:int = 10):
+    def search_chunks(self, query: str, limit: int = 10):
+        # 1) 查询向量
         query_embedding = self.generate_embedding(query)
-        chunk_score = []
+
+        # 2) 逐个 chunk 算余弦相似度
+        chunk_score: list[dict[str, int | float]] = []
         for chunk_idx, chunk_embedding in enumerate(self.chunk_embeddings):
             cos_sim = cosine_similarity(query_embedding, chunk_embedding)
             chunk_score.append({
@@ -172,4 +175,33 @@ class ChunkSemanticSearch(SemanticSearch):
                 "movie_idx": self.chunk_metadata[chunk_idx]["movie_idx"],
                 "score": cos_sim,
             })
+
+        # 4) movie_idx -> 该电影所有 chunk 里的最高分
+        movie_scores: dict[int, float] = {}
+        # 5) 只在"还没出现过"或"新分更高"时更新
+        for cs in chunk_score:
+            midx = int(cs["movie_idx"])
+            score = float(cs["score"])
+            if midx not in movie_scores or score > movie_scores[midx]:
+                movie_scores[midx] = score
+
+        # 6) 按分数降序
+        sorted_movies = sorted(movie_scores.items(), key=lambda kv: kv[1], reverse=True)
+
+        # 7) 取前 limit 部电影
+        top_movies = sorted_movies[:limit]
+
+        # 8) 组装结果（描述截断到 100 字符，分数保留 3 位小数）
+        results = []
+        for midx, score in top_movies:
+            doc = self.documents[midx]
+            results.append({
+                "id": doc["id"],
+                "title": doc["title"],
+                "document": doc["description"][:100],
+                "score": round(score, 3),
+            })
+
+        # 9) 返回
+        return results
 
