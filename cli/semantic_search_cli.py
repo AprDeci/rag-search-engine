@@ -1,6 +1,6 @@
 import argparse
 import json
-from lib.semantic_search import SemanticSearch, embed_query_text, embed_text, verify_embeddings, verify_model
+from lib.semantic_search import SemanticSearch, ChunkSemanticSearch, embed_query_text, embed_text, verify_embeddings, verify_model
 import re
 
 def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
@@ -90,9 +90,9 @@ def main() -> None:
         case "embed_chunks":
             with open("data/movies.json", encoding="utf-8") as f:
                 documents = json.load(f)["movies"]
-            chunked = ChunkedSemanticSearch()
-            chunked.load_or_create_chunk_embeddings(documents)
-            print(f"Generated {len(chunked.chunk_embeddings)} chunked embeddings")
+            chunked = ChunkSemanticSearch()
+            chunked.load_or_create_embeddings(documents)
+            print(f"Generated {len(chunked.embeddings)} chunked embeddings")
         case _:
             parser.print_help()
 

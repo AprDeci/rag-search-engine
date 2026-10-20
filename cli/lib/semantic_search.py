@@ -115,7 +115,7 @@ def semantic_chunk_text(text: str, max_chunk_size: int, overlap: int) -> list[st
     return chunks
 
 
-class ChunkedSemanticSearch(SemanticSearch):
+class ChunkSemanticSearch(SemanticSearch):
     def __init__(self):
         super().__init__()
         self.chunk_embeddings = None
@@ -161,3 +161,15 @@ class ChunkedSemanticSearch(SemanticSearch):
             self.chunk_metadata = json.load(open("cache/chunk_metadata.json", "r", encoding="utf-8"))["chunks"]
         else:
             self.chunk_embeddings = self.build_chunk_embeddings(documents)
+
+    def search_chunks(self,query:str,limit:int = 10):
+        query_embedding = self.generate_embedding(query)
+        chunk_score = []
+        for chunk_idx, chunk_embedding in enumerate(self.chunk_embeddings):
+            cos_sim = cosine_similarity(query_embedding, chunk_embedding)
+            chunk_score.append({
+                "chunk_idx": chunk_idx,
+                "movie_idx": self.chunk_metadata[chunk_idx]["movie_idx"],
+                "score": cos_sim,
+            })
+
